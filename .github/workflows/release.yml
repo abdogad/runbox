@@ -2,9 +2,8 @@ name: release
 
 # Tag a commit `v*` (e.g. v0.1.0) and push it: this builds a fully static
 # x86_64 musl binary — it runs on any Linux distro/container regardless of
-# glibc version, which is what deployments (e.g. CodeClash's judge image via
-# get-runbox.sh) download — runs the test suite against it, and attaches
-# binary + checksum to a GitHub release.
+# glibc version, which is what deployments download — runs the test suite
+# against it, and attaches binary + checksum to a GitHub release.
 on:
   push:
     tags: ["v*"]

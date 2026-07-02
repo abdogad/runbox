@@ -39,8 +39,8 @@ One `runbox run` per execution, verdict decided from the JSON:
 The instruction budget is the one policy knob: `INSN_PER_MS` (default
 2 000 000 — sio2jail's "2 GHz virtual CPU" convention) converts a per-problem
 ms limit into instructions. Calibrate it against reference solutions on your
-own problems; a production example with a deliberately conservative choice is
-CodeClash's `judge/judging.py`.
+own problems and hardware; when in doubt, err generous — a loose budget only
+admits slightly slower solutions, a tight one rejects correct ones.
 
 Run it under a scope locally so runbox's self-service cgroup setup stays out
 of your desktop session and an OOM-killed `mle.py` can't stop the scope:

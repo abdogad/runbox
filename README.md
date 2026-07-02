@@ -1,5 +1,9 @@
 # runbox
 
+[![CI](https://github.com/abdogad/runbox/actions/workflows/ci.yml/badge.svg)](https://github.com/abdogad/runbox/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/abdogad/runbox)](https://github.com/abdogad/runbox/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Rootless Linux sandbox that runs untrusted code and reports low-variance,
 load-invariant cost measurements — no `--privileged`, no setuid.**
 
@@ -31,6 +35,9 @@ chmod +x runbox && sudo mv runbox /usr/local/bin/
 
 Or build from source: `cargo build --release`.
 
+> **Note:** the `runbox` crate on crates.io is an unrelated project. This
+> runbox is distributed as the static binary above, or built from source.
+
 ## Quickstart
 
 ```bash
@@ -53,11 +60,11 @@ process tree across bwrap's PID namespace; `"accounting"` tells you whether
 you got that (`cgroup`) or the per-process fallback (`rusage`), and
 `--require-cgroup` turns the fallback into a hard error.
 
-Building a judge on top of this contract takes ~100 lines of glue —
+The full field-by-field contract — every JSON field, every exit code, and
+what is guaranteed stable — is [docs/CONTRACT.md](docs/CONTRACT.md).
+Building a judge on top of it takes ~100 lines of glue:
 [`examples/minijudge`](examples/minijudge) is a complete AC/WA/CE/RE/TLE/MLE
-judge you can run right now; the production integration is
-[CodeClash](https://github.com/abdogad/code-clash)'s `judge/sandbox.py` +
-`judging.py`, where instruction budgets replaced CPU-time verdicts.
+judge you can run right now.
 
 ## Low-variance measurement (the point) — and its honest limits
 
@@ -132,12 +139,14 @@ gives runbox its subtree.
 
 - **Engine:** Rust (`src/lib.rs`, `src/cgroup.rs`, `src/main.rs`) — perf
   instruction counting, bwrap isolation, per-run cgroup v2 accounting and
-  caps, rlimit backstops, one-line JSON contract. The earlier Python
-  prototype has been retired; the pytest suite now drives the binary.
-- **Roadmap:** ~~variance benchmark write-up~~
-  ([done — docs/BENCHMARK.md](docs/BENCHMARK.md)) → ~~cgroup port + test
-  migration~~ (done) → ~~reference mini-judge + release binaries + CodeClash
-  integration~~ (done) → seccomp allowlist.
+  caps, rlimit backstops, one-line JSON contract
+  ([docs/CONTRACT.md](docs/CONTRACT.md)).
+- **Roadmap:** seccomp-bpf syscall allowlist → aarch64 release binary →
+  fresh procfs instead of the read-only host `/proc` bind. Done so far:
+  [variance benchmark](docs/BENCHMARK.md), cgroup v2 port, reference
+  mini-judge, static release binaries.
+- **Used by:** [CodeClash](https://github.com/abdogad/code-clash), where
+  instruction budgets replaced CPU-time verdicts in production judging.
 
 ## How it compares
 
@@ -159,6 +168,7 @@ generally don't expose the PMU, which disables instruction counting.
 
 ```bash
 cargo build --release        # the suite drives this binary via its JSON contract
+cargo test                   # Rust unit tests
 pip install pytest
 systemd-run --user --scope -q -p OOMPolicy=continue -- python3 -m pytest -v
 ```
@@ -171,6 +181,12 @@ is unavailable.)
 `tests/test_adversarial.py`: output flood, memory bomb, **fork-spread memory
 bomb** (16 × 64 MB vs a 128 MB limit — invisible to per-process accounting,
 caught by the cgroup), fork bomb, infinite loop.
+
+## Contributing & security
+
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Report
+vulnerabilities privately per [SECURITY.md](SECURITY.md). Release history:
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

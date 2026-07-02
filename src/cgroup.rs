@@ -61,7 +61,7 @@ fn vacate_and_enable(base: &Path) -> io::Result<()> {
         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
         Err(e) => return Err(e),
     }
-    let mut last_err = io::Error::new(io::ErrorKind::Other, "unreachable");
+    let mut last_err = io::Error::other("unreachable");
     for _ in 0..ENABLE_RETRIES {
         if let Ok(procs) = fs::read_to_string(base.join("cgroup.procs")) {
             for pid in procs.split_whitespace() {

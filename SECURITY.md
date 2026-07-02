@@ -1,0 +1,48 @@
+# Security policy
+
+## Reporting a vulnerability
+
+Please report vulnerabilities **privately** — do not open a public issue:
+
+- GitHub: [Report a vulnerability](https://github.com/abdogad/runbox/security/advisories/new)
+  (Security tab → Advisories), or
+- Email: abdelmonem.mgad@gmail.com with `[runbox security]` in the subject.
+
+You'll get an acknowledgment within a few days. Only the latest release is
+supported with fixes.
+
+## Threat model — what counts as a vulnerability
+
+runbox runs **semi-trusted** code (contest submissions, autograded homework)
+as an unprivileged user inside bubblewrap. In scope, roughly in order of
+severity:
+
+1. **Escape** — sandboxed code affecting anything outside its namespaces:
+   writing outside `/box` and `/tmp`, reaching the network, signaling or
+   inspecting host processes.
+2. **Measurement bypass** — doing significant computation that evades the
+   instruction count *and* the RLIMIT_CPU backstop, or corrupting another
+   run's measurement (cross-run interference).
+3. **Limit bypass** — exceeding the memory cap without detection, surviving
+   `cgroup.kill` teardown, or leaving processes running after runbox exits.
+4. **Result forgery** — sandboxed code influencing the JSON line runbox
+   prints (beyond its own exit code/output, which are the caller's to judge).
+
+Explicitly **out of scope**:
+
+- runbox is **not a hardware isolation boundary**. Kernel 0-days,
+  speculative-execution side channels, and PMU side channels are not
+  defended against — for fully hostile code, deploy behind gVisor or a
+  microVM (see README).
+- Documented degradations: without `--require-insn` / `--require-cgroup`,
+  runbox falls back to time-based measurement / per-process accounting by
+  design, and says so in the JSON (`measurement`, `accounting`).
+- Kernel-mode work is invisible to the counter by design; that is why the
+  RLIMIT_CPU backstop is part of the verdict contract.
+- `--no-isolate` runs are for trusted code; nothing is claimed for them.
+- Denial of service bounded by the configured limits (a submission is
+  *supposed* to be able to burn its own budget).
+
+Known gaps already on the roadmap (a report is still welcome if you can
+demonstrate impact worse than documented): no seccomp-bpf syscall filter yet;
+the host `/proc` is bind-mounted read-only rather than a fresh procfs.

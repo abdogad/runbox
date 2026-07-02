@@ -9,12 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
       - run: sudo apt-get update && sudo apt-get install -y bubblewrap
       # Ubuntu 24.04 (and its runner image) ships AppArmor's unprivileged-
       # userns restriction enabled, which kills bwrap --unshare-all on sight —
-      # disable it like production does (CodeClash deploy/bootstrap-server.sh),
-      # then prove the sandbox actually starts so a regression here fails
-      # loudly on THIS line, not as 12 cryptic test failures.
+      # disable it like production deployments do, then prove the sandbox
+      # actually starts so a regression here fails loudly on THIS line, not
+      # as 12 cryptic test failures.
       # cgroup delegation and a PMU are still absent on runners, so cgroup-
       # and instruction-dependent asserts skip; isolation and rlimit tests
       # run for real.
@@ -27,5 +29,6 @@ jobs:
             --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
             --symlink usr/bin /bin -- /bin/true && echo "bwrap sandbox OK"
       - run: cargo build --release
+      - run: cargo test --release
       - run: pip install pytest
       - run: python -m pytest -v

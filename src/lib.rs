@@ -4,10 +4,11 @@
 //!
 //! Boundary: this engine runs ONE command. Everything above it — compile steps,
 //! test tiers, checkers, verdict mapping (AC/WA/TLE/...) — belongs to the caller
-//! (e.g. CodeClash's judging.py). runbox knows nothing about problems or Redis.
+//! (a judge, autograder, or execution backend). runbox knows nothing about
+//! problems or queues.
 //!
-//! Isolation reuses bubblewrap (the setup CodeClash already ships): a fresh
-//! net/pid/user/ipc/mount namespace, /usr read-only, the work box at /box.
+//! Isolation reuses bubblewrap: a fresh net/pid/user/ipc/mount namespace,
+//! /usr read-only, the work box at /box.
 //! Measurement: a `perf_event_open` counter for retired user-space instructions
 //! is attached to the bwrap child with `inherit=1`, so it follows the whole
 //! subtree across bwrap's new PID namespace. Peak RSS and CPU time come from a
@@ -26,7 +27,7 @@ use std::ffi::CString;
 use std::io;
 use std::os::raw::{c_int, c_void};
 use std::os::unix::io::RawFd;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 pub const BWRAP: &str = "/usr/bin/bwrap";
@@ -130,7 +131,7 @@ pub struct RunResult {
 }
 
 impl RunResult {
-    /// Stable JSON line — the CLI contract CodeClash's worker parses.
+    /// Stable JSON line — the CLI contract callers parse (docs/CONTRACT.md).
     pub fn to_json(&self) -> String {
         fn opt_i(v: Option<i32>) -> String {
             v.map_or("null".into(), |x| x.to_string())
@@ -143,7 +144,11 @@ impl RunResult {
             .map_or("null".to_string(), |s| format!("\"{s}\""));
         // "degraded" shouts what a null `instructions` only whispers: no perf,
         // so any verdict from this run is time-based and load-dependent.
-        let measurement = if self.instructions.is_some() { "full" } else { "degraded" };
+        let measurement = if self.instructions.is_some() {
+            "full"
+        } else {
+            "degraded"
+        };
         format!(
             "{{\"exit_code\":{},\"signal\":{},\"timed_out\":{},\"killed\":{},\
 \"instructions\":{},\"measurement\":\"{}\",\"accounting\":\"{}\",\
@@ -220,6 +225,7 @@ fn read_counter(fd: c_int) -> Option<u64> {
 }
 
 /// Build the full argv to exec: bwrap-wrapped when a box is given, else raw.
+#[rustfmt::skip] // the bwrap argv reads as a table of (flag, args) rows
 fn build_command(argv: &[String], spec: &SandboxSpec) -> Vec<String> {
     let Some(box_dir) = &spec.box_dir else {
         return argv.to_vec();
@@ -270,7 +276,7 @@ fn build_command(argv: &[String], spec: &SandboxSpec) -> Vec<String> {
 /// existing fd (0/1/2) rather than open the path: opening those with O_TRUNC
 /// would truncate whatever the caller redirected them to (its own log). The
 /// bool is `owned` — whether the parent must close it afterwards.
-fn resolve_fd(path: &PathBuf, std_fd: RawFd, write: bool) -> io::Result<(RawFd, bool)> {
+fn resolve_fd(path: &Path, std_fd: RawFd, write: bool) -> io::Result<(RawFd, bool)> {
     let s = path.to_string_lossy();
     let std_path = match std_fd {
         0 => "/dev/stdin",
@@ -574,4 +580,104 @@ pub fn run(argv: &[String], spec: &SandboxSpec, limits: &Limits) -> io::Result<R
         peak_kb: cg_peak.unwrap_or(ru.ru_maxrss),
         accounting,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn result_full() -> RunResult {
+        RunResult {
+            exit_code: Some(0),
+            signal: None,
+            timed_out: false,
+            killed: None,
+            instructions: Some(1_140_561_942),
+            cpu_ms: 116,
+            wall_ms: 117,
+            peak_kb: 5864,
+            accounting: "cgroup",
+        }
+    }
+
+    #[test]
+    fn json_full_measurement() {
+        assert_eq!(
+            result_full().to_json(),
+            "{\"exit_code\":0,\"signal\":null,\"timed_out\":false,\"killed\":null,\
+             \"instructions\":1140561942,\"measurement\":\"full\",\"accounting\":\"cgroup\",\
+             \"cpu_ms\":116,\"wall_ms\":117,\"peak_kb\":5864}"
+        );
+    }
+
+    #[test]
+    fn json_degraded_when_no_instructions() {
+        let r = RunResult {
+            instructions: None,
+            accounting: "rusage",
+            ..result_full()
+        };
+        let j = r.to_json();
+        assert!(j.contains("\"instructions\":null"));
+        assert!(j.contains("\"measurement\":\"degraded\""));
+        assert!(j.contains("\"accounting\":\"rusage\""));
+    }
+
+    #[test]
+    fn json_signal_kill() {
+        let r = RunResult {
+            exit_code: None,
+            signal: Some(9),
+            killed: Some("instructions"),
+            ..result_full()
+        };
+        let j = r.to_json();
+        assert!(j.contains("\"exit_code\":null"));
+        assert!(j.contains("\"signal\":9"));
+        assert!(j.contains("\"killed\":\"instructions\""));
+    }
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn build_command_no_box_is_passthrough() {
+        let argv = args(&["python3", "m.py"]);
+        assert_eq!(build_command(&argv, &SandboxSpec::default()), argv);
+    }
+
+    #[test]
+    fn build_command_wraps_with_bwrap() {
+        let spec = SandboxSpec {
+            box_dir: Some(PathBuf::from("/tmp/box")),
+            ..Default::default()
+        };
+        let cmd = build_command(&args(&["python3", "m.py"]), &spec);
+        assert_eq!(cmd[0], BWRAP);
+        // Read-only box by default; payload argv comes after the terminator.
+        let ro = cmd
+            .windows(3)
+            .any(|w| w == args(&["--ro-bind", "/tmp/box", "/box"]));
+        assert!(ro, "box should be ro-bound at /box: {cmd:?}");
+        let sep = cmd.iter().rposition(|a| a == "--").unwrap();
+        assert_eq!(&cmd[sep + 1..], &args(&["python3", "m.py"])[..]);
+    }
+
+    #[test]
+    fn build_command_writable_and_extra_binds() {
+        let spec = SandboxSpec {
+            box_dir: Some(PathBuf::from("/tmp/box")),
+            writable: true,
+            extra_binds: vec![("/opt/jdk".into(), "/opt/jdk".into(), false)],
+            ..Default::default()
+        };
+        let cmd = build_command(&args(&["javac", "M.java"]), &spec);
+        assert!(cmd
+            .windows(3)
+            .any(|w| w == args(&["--bind", "/tmp/box", "/box"])));
+        assert!(cmd
+            .windows(3)
+            .any(|w| w == args(&["--ro-bind", "/opt/jdk", "/opt/jdk"])));
+    }
 }
