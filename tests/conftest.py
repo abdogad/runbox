@@ -3,11 +3,18 @@ parses its one-line JSON contract — the same way a judge consumes runbox.
 
 Capability probes make the suite portable: cgroup-dependent asserts skip
 where delegation is unavailable (plain CI), instruction asserts skip without
-a PMU (most CI runners). Locally, run the suite inside a fresh scope so the
-cgroup dance doesn't migrate your desktop session, and with OOMPolicy=continue
-so systemd doesn't stop the scope when a memory-bomb test gets OOM-killed:
+a PMU (most CI runners).
 
-    systemd-run --user --scope -q -p OOMPolicy=continue -- python3 -m pytest -v
+Locally, runbox must NOT be invoked straight from a desktop app's systemd
+scope (an IDE terminal): its cgroup dance would migrate that scope's
+processes, and a memory-bomb test OOM-killed in its per-run cgroup bubbles
+an oom_kill event up the hierarchy into the scope's memory.events — systemd's
+default OOMPolicy=stop then stops the WHOLE scope, editor included (the
+desktop shows it as "memory shortage avoided"). So `run_box` launches every
+runbox invocation inside its own throwaway transient scope
+(`systemd-run --scope -p OOMPolicy=continue`), a sibling of the IDE's scope
+rather than a descendant; where no systemd user manager is reachable (CI
+containers) it runs un-scoped, which is fine there.
 """
 
 import json
@@ -19,6 +26,20 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 RUNBOX = REPO / "target" / "release" / "runbox"
+
+
+def _scope_prefix():
+    """Command prefix isolating one runbox run in its own transient systemd
+    scope (docstring above); empty where no user manager answers (CI)."""
+    if shutil.which("systemd-run") is None:
+        return []
+    prefix = ["systemd-run", "--user", "--scope", "-q",
+              "-p", "OOMPolicy=continue", "--"]
+    probe = subprocess.run([*prefix, "/bin/true"], capture_output=True)
+    return prefix if probe.returncode == 0 else []
+
+
+SCOPE = _scope_prefix()
 
 pytestmark = pytest.mark.skipif(
     shutil.which("bwrap") is None, reason="bwrap not installed"
@@ -32,7 +53,7 @@ def run_box(box, argv, *, wall=5000, cpu_s=3, mem_kb=131072, insn=None,
     the captured stdout text attached as res['_stdout']."""
     box = Path(box)
     out, err = box / "o", box / "e"
-    cmd = [str(RUNBOX), "run", "--box", str(box),
+    cmd = [*SCOPE, str(RUNBOX), "run", "--box", str(box),
            "--wall-ms", str(wall), "--cpu-s", str(cpu_s),
            "--mem-kb", str(mem_kb),
            "--stdout", str(out), "--stderr", str(err)]
