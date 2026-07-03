@@ -1,4 +1,4 @@
-//! `runbox run [OPTIONS] -- <command...>` — run one command isolated, measure
+//! `tallyrun run [OPTIONS] -- <command...>` — run one command isolated, measure
 //! its instruction count, enforce limits, print one JSON line of results to
 //! stdout. This is the contract a judge consumes as a subprocess (docs/CONTRACT.md).
 //!
@@ -16,7 +16,7 @@
 //!                      whole subtree), or RLIMIT_AS without a cgroup
 //!   --pin-cpu <N>      pin the run to CPU N (cgroup cpuset; kernel-enforced)
 //!   --cgroup-dir <p>   prepared cgroup dir for per-run children (else
-//!                      $RUNBOX_CGROUP_DIR, else the self-service dance)
+//!                      $TALLYRUN_CGROUP_DIR, else the self-service dance)
 //!   --require-insn     error out (exit 3) if perf can't count instructions,
 //!                      instead of silently degrading to time-based measurement
 //!   --require-cgroup   error out (exit 3) without full cgroup accounting
@@ -29,17 +29,17 @@
 use std::path::PathBuf;
 use std::process::exit;
 
-use runbox::{run, Limits, ProcMode, SandboxSpec};
+use tallyrun::{run, Limits, ProcMode, SandboxSpec};
 
 const HELP: &str = "\
-runbox - rootless sandbox with load-invariant instruction-count measurement
+tallyrun - rootless sandbox with load-invariant instruction-count measurement
 
 Runs one command isolated (bubblewrap), measures its work in retired
 user-space instructions (perf), enforces limits, and prints one JSON line
 to stdout. Full field-by-field contract: docs/CONTRACT.md in the repo.
 
 USAGE:
-    runbox run [OPTIONS] -- <command...>
+    tallyrun run [OPTIONS] -- <command...>
 
 OPTIONS:
     --box <dir>          work dir bind-mounted at /box (enables bwrap isolation)
@@ -57,7 +57,7 @@ OPTIONS:
                          tree-wide). Give each concurrent worker its own core;
                          also tightens insn enforcement to 1-core burn rate
     --cgroup-dir <p>     prepared cgroup dir for per-run children (else
-                         $RUNBOX_CGROUP_DIR, else self-service setup)
+                         $TALLYRUN_CGROUP_DIR, else self-service setup)
     --require-insn       exit 3 if perf can't count instructions, instead of
                          silently degrading to time-based measurement
     --require-cgroup     exit 3 without full cgroup accounting
@@ -79,8 +79,8 @@ EXIT STATUS:
 ";
 
 fn fail(msg: &str) -> ! {
-    eprintln!("runbox: {msg}");
-    eprintln!("usage: runbox run [OPTIONS] -- <command...> (--help for details)");
+    eprintln!("tallyrun: {msg}");
+    eprintln!("usage: tallyrun run [OPTIONS] -- <command...> (--help for details)");
     exit(2);
 }
 
@@ -164,7 +164,7 @@ fn main() {
                 exit(0);
             }
             "--version" | "-V" => {
-                println!("runbox {}", env!("CARGO_PKG_VERSION"));
+                println!("tallyrun {}", env!("CARGO_PKG_VERSION"));
                 exit(0);
             }
             "--" => {
@@ -191,7 +191,7 @@ fn main() {
             exit(r.exit_code.unwrap_or(1));
         }
         Err(e) => {
-            eprintln!("runbox: run failed: {e}");
+            eprintln!("tallyrun: run failed: {e}");
             exit(3);
         }
     }

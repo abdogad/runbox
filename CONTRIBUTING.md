@@ -11,7 +11,7 @@ pip install pytest
 systemd-run --user --scope -q -p OOMPolicy=continue -- python3 -m pytest -v
 ```
 
-The pytest suite is the real test: it drives `target/release/runbox` through
+The pytest suite is the real test: it drives `target/release/tallyrun` through
 its CLI/JSON contract, adversarial cases included (fork bombs, memory bombs,
 output floods). The `systemd-run` wrapper gives it a delegated cgroup scope
 and keeps systemd from killing the session when the OOM tests fire; plain

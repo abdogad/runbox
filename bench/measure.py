@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""runbox variance study: instruction count vs CPU time vs wall time.
+"""tallyrun variance study: instruction count vs CPU time vs wall time.
 
 Methodology follows COFFE (arXiv:2502.02827): run each workload N times,
 drop the min and max, report the relative standard deviation (RSD) of the
@@ -7,7 +7,7 @@ rest. Conditions: idle machine, then loaded (2x nproc shell busy-loops).
 Also measures the bwrap isolation offset (isolated minus bare instruction
 count) and its run-to-run stability.
 
-All runs go through `runbox run --no-isolate` so cpu_ms/peak_kb come from
+All runs go through `tallyrun run --no-isolate` so cpu_ms/peak_kb come from
 wait4 on the payload itself (no PID-namespace blind spot); the isolation
 offset experiment is the only part that uses `--box`.
 
@@ -16,7 +16,7 @@ Usage:
     python bench/measure.py --quick       # 4 runs, idle only (sanity check)
     python bench/measure.py --skip-load   # skip the loaded condition
 
-Needs: target/release/runbox, cc. Optional: node, java (>= 11).
+Needs: target/release/tallyrun, cc. Optional: node, java (>= 11).
 """
 
 import argparse
@@ -34,7 +34,7 @@ from pathlib import Path
 
 BENCH = Path(__file__).resolve().parent
 REPO = BENCH.parent
-RUNBOX = REPO / "target" / "release" / "runbox"
+TALLYRUN = REPO / "target" / "release" / "tallyrun"
 WL = BENCH / "workloads"
 PY = sys.executable or "/usr/bin/python3"
 
@@ -112,7 +112,7 @@ def run_once(argv, env_over, extra_flags=()):
         else:
             env[k] = v
     iso = () if "--box" in extra_flags else ("--no-isolate",)
-    cmd = [str(RUNBOX), "run", *iso, "--wall-ms", "120000",
+    cmd = [str(TALLYRUN), "run", *iso, "--wall-ms", "120000",
            "--stdout", "/dev/null", *extra_flags, "--", *argv]
     p = subprocess.run(cmd, capture_output=True, text=True, env=env)
     line = p.stdout.strip().splitlines()[-1] if p.stdout.strip() else ""
@@ -260,7 +260,7 @@ def main():
     if args.quick:
         args.runs, args.skip_load = 4, True
 
-    if not RUNBOX.exists():
+    if not TALLYRUN.exists():
         sys.exit("build first: cargo build --release")
     if os.getloadavg()[0] > 2:
         log(f"warning: loadavg {os.getloadavg()[0]:.1f} — 'idle' numbers will be dirty")

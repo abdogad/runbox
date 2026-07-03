@@ -1,19 +1,19 @@
 [package]
-name = "runbox"
+name = "tallyrun"
 version = "0.4.0"
 edition = "2021"
 description = "Judge untrusted competitive-programming code on low-variance, load-invariant virtual time (hardware instruction counting) instead of wall/CPU seconds."
 license = "MIT"
-repository = "https://github.com/abdogad/runbox"
+repository = "https://github.com/abdogad/tallyrun"
 keywords = ["sandbox", "judge", "competitive-programming", "perf", "isolation"]
 categories = ["command-line-utilities", "development-tools"]
 
 [lib]
-name = "runbox"
+name = "tallyrun"
 path = "src/lib.rs"
 
 [[bin]]
-name = "runbox"
+name = "tallyrun"
 path = "src/main.rs"
 
 [dependencies]

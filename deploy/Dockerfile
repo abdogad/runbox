@@ -1,4 +1,4 @@
-# Reference image: the runbox binary + bubblewrap + toolchains, with tini as
+# Reference image: the tallyrun binary + bubblewrap + toolchains, with tini as
 # PID 1 (reaps the foreign children bwrap reparents on exit). Run it with
 # cgroup delegation (deploy/compose.yml) for full accounting; instruction
 # counting additionally needs a PMU and a seccomp profile that allows
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         tini \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /src/target/release/runbox /usr/local/bin/runbox
+COPY --from=build /src/target/release/tallyrun /usr/local/bin/tallyrun
 
 ENTRYPOINT ["tini", "--"]
-CMD ["runbox", "run", "--no-isolate", "--stdout", "/dev/stdout", "--", "python3", "-c", "print('runbox ready')"]
+CMD ["tallyrun", "run", "--no-isolate", "--stdout", "/dev/stdout", "--", "python3", "-c", "print('tallyrun ready')"]

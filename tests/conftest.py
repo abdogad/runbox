@@ -1,17 +1,17 @@
 """Shared harness: every test drives the release binary as a subprocess and
-parses its one-line JSON contract — the same way a judge consumes runbox.
+parses its one-line JSON contract — the same way a judge consumes tallyrun.
 
 Capability probes make the suite portable: cgroup-dependent asserts skip
 where delegation is unavailable (plain CI), instruction asserts skip without
 a PMU (most CI runners).
 
-Locally, runbox must NOT be invoked straight from a desktop app's systemd
+Locally, tallyrun must NOT be invoked straight from a desktop app's systemd
 scope (an IDE terminal): its cgroup dance would migrate that scope's
 processes, and a memory-bomb test OOM-killed in its per-run cgroup bubbles
 an oom_kill event up the hierarchy into the scope's memory.events — systemd's
 default OOMPolicy=stop then stops the WHOLE scope, editor included (the
 desktop shows it as "memory shortage avoided"). So `run_box` launches every
-runbox invocation inside its own throwaway transient scope
+tallyrun invocation inside its own throwaway transient scope
 (`systemd-run --scope -p OOMPolicy=continue`), a sibling of the IDE's scope
 rather than a descendant; where no systemd user manager is reachable (CI
 containers) it runs un-scoped, which is fine there.
@@ -25,11 +25,11 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
-RUNBOX = REPO / "target" / "release" / "runbox"
+TALLYRUN = REPO / "target" / "release" / "tallyrun"
 
 
 def _scope_prefix():
-    """Command prefix isolating one runbox run in its own transient systemd
+    """Command prefix isolating one tallyrun run in its own transient systemd
     scope (docstring above); empty where no user manager answers (CI)."""
     if shutil.which("systemd-run") is None:
         return []
@@ -53,7 +53,7 @@ def run_box(box, argv, *, wall=5000, cpu_s=3, mem_kb=131072, insn=None,
     the captured stdout text attached as res['_stdout']."""
     box = Path(box)
     out, err = box / "o", box / "e"
-    cmd = [*SCOPE, str(RUNBOX), "run", "--box", str(box),
+    cmd = [*SCOPE, str(TALLYRUN), "run", "--box", str(box),
            "--wall-ms", str(wall), "--cpu-s", str(cpu_s),
            "--mem-kb", str(mem_kb),
            "--stdout", str(out), "--stderr", str(err)]
@@ -73,10 +73,10 @@ def run_box(box, argv, *, wall=5000, cpu_s=3, mem_kb=131072, insn=None,
         cmd += ["--pin-cpu", str(pin_cpu)]
     cmd += ["--", *argv]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    # runbox mirrors the child's exit code, so its own failures (usage error,
+    # tallyrun mirrors the child's exit code, so its own failures (usage error,
     # run failure) are recognized by the absence of the JSON line, not by code.
     lines = p.stdout.strip().splitlines()
-    assert lines, f"runbox produced no result (exit {p.returncode}): {p.stderr}"
+    assert lines, f"tallyrun produced no result (exit {p.returncode}): {p.stderr}"
     res = json.loads(lines[-1])
     res["_stdout"] = out.read_text() if out.exists() else ""
     res["_stderr"] = err.read_text() if err.exists() else ""
@@ -90,7 +90,7 @@ def write_box(box, files):
 
 def _probe():
     """One trivial isolated run tells us which capabilities this host has."""
-    if not RUNBOX.exists() or shutil.which("bwrap") is None:
+    if not TALLYRUN.exists() or shutil.which("bwrap") is None:
         return False, False
     import tempfile
     with tempfile.TemporaryDirectory() as d:
@@ -101,8 +101,8 @@ def _probe():
     return res["accounting"] == "cgroup", res["measurement"] == "full"
 
 
-if not RUNBOX.exists():
-    pytest.exit(f"build the engine first: cargo build --release ({RUNBOX} missing)")
+if not TALLYRUN.exists():
+    pytest.exit(f"build the engine first: cargo build --release ({TALLYRUN} missing)")
 
 HAVE_CG, HAVE_INSN = _probe()
 
@@ -110,7 +110,7 @@ HAVE_CG, HAVE_INSN = _probe()
 def pytest_report_header(config):
     # One glance at a CI log answers "what could this host measure?" —
     # e.g. a broken bwrap shows up as every capability False.
-    return f"runbox capabilities: cgroup={HAVE_CG} instructions={HAVE_INSN}"
+    return f"tallyrun capabilities: cgroup={HAVE_CG} instructions={HAVE_INSN}"
 
 needs_cgroup = pytest.mark.skipif(
     not HAVE_CG, reason="cgroup delegation unavailable (accounting=rusage)"

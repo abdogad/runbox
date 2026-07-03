@@ -16,7 +16,7 @@
 //!   io_uring to epoll. `EPERM` there can abort a runtime; `ENOSYS` reads as
 //!   "old kernel" and takes the tested fallback path.
 //!
-//! The program is hand-assembled cBPF (runbox's only dependency stays libc);
+//! The program is hand-assembled cBPF (tallyrun's only dependency stays libc);
 //! bwrap loads it via `--seccomp FD` as the last step before exec'ing the
 //! payload, and it inherits across the whole process tree. Syscall numbers
 //! come from `libc::SYS_*`, so the same table builds correctly per
@@ -182,7 +182,7 @@ pub fn install_fd() -> io::Result<OwnedFd> {
     let bytes: &[u8] = unsafe {
         std::slice::from_raw_parts(prog.as_ptr() as *const u8, std::mem::size_of_val(&prog[..]))
     };
-    let name = c"runbox-seccomp";
+    let name = c"tallyrun-seccomp";
     let raw = unsafe { libc::memfd_create(name.as_ptr(), 0) };
     if raw < 0 {
         return Err(io::Error::last_os_error());

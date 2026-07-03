@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""minijudge — the smallest real judge you can build on runbox.
+"""minijudge — the smallest real judge you can build on tallyrun.
 
     python3 judge.py solutions/ac.py problem/
     python3 judge.py solutions/tle.c problem/
 
 One solution, one problem directory (tests/NN.in + NN.out + limits.json),
-verdicts AC/WA/CE/RE/TLE/MLE. ~100 lines of stdlib glue: runbox does the
+verdicts AC/WA/CE/RE/TLE/MLE. ~100 lines of stdlib glue: tallyrun does the
 isolation (bubblewrap), the measurement (retired-instruction counter, per-run
 cgroup) and the killing; this script only builds CLI invocations, parses the
 one-line JSON contract, and compares outputs.
@@ -13,7 +13,7 @@ one-line JSON contract, and compares outputs.
 The point of instructions: the TLE verdict is decided on *virtual time* —
 instructions / INSN_PER_MS — which is load-invariant to ~1e-5 % for compiled
 code, so the same solution gets the same verdict on a busy laptop and an idle
-server. On hosts without a PMU (most CI) runbox reports measurement:"degraded"
+server. On hosts without a PMU (most CI) tallyrun reports measurement:"degraded"
 and this judge falls back to measured CPU time, like a classic judge.
 """
 
@@ -26,9 +26,9 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-_LOCAL_BUILD = HERE.parent.parent / "target" / "release" / "runbox"
-RUNBOX = os.environ.get("RUNBOX") or (
-    _LOCAL_BUILD if _LOCAL_BUILD.exists() else shutil.which("runbox"))
+_LOCAL_BUILD = HERE.parent.parent / "target" / "release" / "tallyrun"
+TALLYRUN = os.environ.get("TALLYRUN") or (
+    _LOCAL_BUILD if _LOCAL_BUILD.exists() else shutil.which("tallyrun"))
 
 # The virtual clock: how many retired instructions one millisecond of the
 # problem's time limit buys. 2e6/ms = sio2jail's "2 GHz CPU retiring one
@@ -46,13 +46,13 @@ LANGS = {
 }
 
 
-def runbox(box, argv, *, stdin="/dev/null", stdout="/dev/null", stderr,
+def tallyrun(box, argv, *, stdin="/dev/null", stdout="/dev/null", stderr,
            wall_ms, cpu_s, mem_kb, insn_limit=None, writable=False, binds=()):
-    """One sandboxed execution -> the parsed JSON result. runbox prints the
+    """One sandboxed execution -> the parsed JSON result. tallyrun prints the
     result on ITS stdout; the sandboxed program's streams go to the files
     passed via --stdin/--stdout/--stderr (opened outside the sandbox, so the
     program never sees the host paths)."""
-    cmd = [str(RUNBOX), "run", "--box", str(box),
+    cmd = [str(TALLYRUN), "run", "--box", str(box),
            "--stdin", str(stdin), "--stdout", str(stdout), "--stderr", str(stderr),
            "--wall-ms", str(wall_ms), "--cpu-s", str(cpu_s), "--mem-kb", str(mem_kb)]
     if insn_limit is not None:
@@ -63,8 +63,8 @@ def runbox(box, argv, *, stdin="/dev/null", stdout="/dev/null", stderr,
         cmd += ["--bind", b]
     p = subprocess.run(cmd + ["--", *argv], capture_output=True, text=True)
     lines = p.stdout.strip().splitlines()
-    if not lines:  # no JSON = runbox itself failed (infra, not the solution)
-        sys.exit(f"runbox failed: {p.stderr.strip()}")
+    if not lines:  # no JSON = tallyrun itself failed (infra, not the solution)
+        sys.exit(f"tallyrun failed: {p.stderr.strip()}")
     return json.loads(lines[-1])
 
 
@@ -86,7 +86,7 @@ def main() -> int:
             # symlinks; lend the compile step (only) that directory read-only.
             binds = (["/etc/alternatives:/etc/alternatives"]
                      if Path("/etc/alternatives").is_dir() else [])
-            r = runbox(box, lang["compile"], stderr=err, binds=binds,
+            r = tallyrun(box, lang["compile"], stderr=err, binds=binds,
                        wall_ms=15000, cpu_s=12, mem_kb=512 * 1024, writable=True)
             if r["exit_code"] != 0:
                 print(f"CE\n{err.read_text()[:400]}")
@@ -94,7 +94,7 @@ def main() -> int:
 
         for tin in sorted(problem.glob("tests/*.in")):
             out, expected = box / "stdout", tin.with_suffix(".out")
-            r = runbox(box, lang["run"], stdin=tin, stdout=out, stderr=err,
+            r = tallyrun(box, lang["run"], stdin=tin, stdout=out, stderr=err,
                        wall_ms=2 * time_ms + 5000,  # hang net; never the verdict
                        cpu_s=(3 * time_ms) // 1000 + 2,  # runaway burn bound
                        mem_kb=mem_kb, insn_limit=time_ms * INSN_PER_MS)

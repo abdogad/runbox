@@ -1,10 +1,10 @@
-//! runbox core — run one command isolated (bubblewrap), measure its work as a
+//! tallyrun core — run one command isolated (bubblewrap), measure its work as a
 //! load-independent instruction count (perf), enforce limits, report a
 //! structured result.
 //!
 //! Boundary: this engine runs ONE command. Everything above it — compile steps,
 //! test tiers, checkers, verdict mapping (AC/WA/TLE/...) — belongs to the caller
-//! (a judge, autograder, or execution backend). runbox knows nothing about
+//! (a judge, autograder, or execution backend). tallyrun knows nothing about
 //! problems or queues.
 //!
 //! Isolation reuses bubblewrap: a fresh net/pid/user/ipc/mount namespace,
@@ -121,7 +121,7 @@ pub struct SandboxSpec {
     pub writable: bool,
     /// Extra mounts layered on the base /usr view: (src, dst, writable).
     pub extra_binds: Vec<(String, String, bool)>,
-    /// Prepared cgroup dir for per-run children (overrides RUNBOX_CGROUP_DIR
+    /// Prepared cgroup dir for per-run children (overrides TALLYRUN_CGROUP_DIR
     /// and the self-service vacate dance).
     pub cgroup_dir: Option<PathBuf>,
     /// Load the seccomp denylist (src/seccomp.rs) into the sandbox. Default
@@ -157,7 +157,7 @@ pub struct RunResult {
     pub signal: Option<i32>,
     /// The wall-clock safety timeout fired (a genuine hang).
     pub timed_out: bool,
-    /// Why runbox killed the process, if it did: "instructions" | "wall".
+    /// Why tallyrun killed the process, if it did: "instructions" | "wall".
     pub killed: Option<&'static str>,
     /// Retired user-space instructions — low-variance, load-invariant virtual
     /// time. `None` if perf couldn't open (paranoid setting / no PMU).
@@ -523,7 +523,7 @@ pub fn run(argv: &[String], spec: &SandboxSpec, limits: &Limits) -> io::Result<R
                 let ok = fresh_proc_available();
                 if !ok {
                     eprintln!(
-                        "runbox: warning: cannot mount a fresh /proc here (hardened \
+                        "tallyrun: warning: cannot mount a fresh /proc here (hardened \
                          container?); binding host /proc read-only — sandboxed code \
                          can see host PIDs. Pass --proc-bind to silence, or fix the \
                          container's /proc masking."
@@ -553,7 +553,7 @@ pub fn run(argv: &[String], spec: &SandboxSpec, limits: &Limits) -> io::Result<R
         }
         Err(e) => {
             eprintln!(
-                "runbox: warning: no per-run cgroup ({e}); cpu_ms/peak_kb degrade \
+                "tallyrun: warning: no per-run cgroup ({e}); cpu_ms/peak_kb degrade \
                  to per-process rusage and the memory cap to RLIMIT_AS"
             );
             None
@@ -571,14 +571,14 @@ pub fn run(argv: &[String], spec: &SandboxSpec, limits: &Limits) -> io::Result<R
             Ok(()) => true,
             Err(e) => {
                 eprintln!(
-                    "runbox: warning: cpu pinning failed ({e}); running unpinned \
+                    "tallyrun: warning: cpu pinning failed ({e}); running unpinned \
                      (needs the cpuset controller delegated)"
                 );
                 false
             }
         },
         (Some(_), None) => {
-            eprintln!("runbox: warning: cpu pinning needs a cgroup; running unpinned");
+            eprintln!("tallyrun: warning: cpu pinning needs a cgroup; running unpinned");
             false
         }
         _ => false,
@@ -695,7 +695,7 @@ pub fn run(argv: &[String], spec: &SandboxSpec, limits: &Limits) -> io::Result<R
                 ));
             }
             eprintln!(
-                "runbox: warning: cgroup enrollment failed ({e}); accounting \
+                "tallyrun: warning: cgroup enrollment failed ({e}); accounting \
                  degrades to per-process rusage"
             );
             cg = None;
@@ -724,7 +724,7 @@ pub fn run(argv: &[String], spec: &SandboxSpec, limits: &Limits) -> io::Result<R
         }
         Err(e) => {
             eprintln!(
-                "runbox: warning: perf_event_open failed ({e}); instruction \
+                "tallyrun: warning: perf_event_open failed ({e}); instruction \
                  counting disabled, measurement degraded to CPU/wall time"
             );
             None

@@ -1,9 +1,16 @@
 # Changelog
 
-Notable changes to runbox. Format follows [Keep a Changelog](https://keepachangelog.com/);
+Notable changes to tallyrun. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/) (0.x: minor bumps may change behavior).
 
 ## [Unreleased]
+
+### Changed
+
+- Renamed the project from `runbox` to `tallyrun` — binary, crate/lib, the
+  `RUNBOX_CGROUP_DIR` env var (→ `TALLYRUN_CGROUP_DIR`), and the internal
+  `runbox-init` cgroup leaf (→ `tallyrun-init`). The CLI surface, JSON
+  contract, exit codes, and flags are unchanged.
 
 ## [0.4.0] - 2026-07-03
 
@@ -14,7 +21,7 @@ versions follow [SemVer](https://semver.org/) (0.x: minor bumps may change behav
   back, unlike `sched_setaffinity`). Intended deployment: one worker per
   core. A confirmed pin also tightens the instruction backstop to single-core
   burn rate, cutting worst-case multi-process overshoot ~`nproc`-fold; if the
-  cpuset controller isn't delegated, runbox warns and runs unpinned with the
+  cpuset controller isn't delegated, tallyrun warns and runs unpinned with the
   conservative all-core backstop.
 
 ### Changed
@@ -45,7 +52,7 @@ versions follow [SemVer](https://semver.org/) (0.x: minor bumps may change behav
   scoped to its own PID namespace, so host process IDs and command lines are
   no longer visible inside it (a read-only bind of the host `/proc` leaked
   them even through a fresh PID namespace, because procfs reflects the
-  namespace the mount was made in). runbox probes at startup — in a throwaway
+  namespace the mount was made in). tallyrun probes at startup — in a throwaway
   user+PID+mount namespace, the same way bwrap mounts it — and only where the
   kernel refuses a fresh procfs (a hardened container whose `/proc` has
   locked masking mounts, the `mount_too_revealing` check) falls back to the
@@ -72,10 +79,10 @@ versions follow [SemVer](https://semver.org/) (0.x: minor bumps may change behav
   `io_uring_*`) return `ENOSYS` so glibc and libuv take their tested
   fallback paths; the rest return `EPERM`; a foreign audit arch or x32
   numbering is killed. Hand-assembled cBPF loaded via bwrap `--seccomp` —
-  runbox's only dependency is still `libc`. CPython, glibc fork/subprocess,
+  tallyrun's only dependency is still `libc`. CPython, glibc fork/subprocess,
   V8, the JVM, and gcc are exercised under the filter in the test suite.
 - `--no-seccomp` to opt out (debugging runtimes that need an exotic syscall).
-- **aarch64 release binary** (`runbox-aarch64-unknown-linux-musl`): the
+- **aarch64 release binary** (`tallyrun-aarch64-unknown-linux-musl`): the
   syscall table is keyed off `libc::SYS_*` per architecture, and the release
   workflow cross-builds a static aarch64 artifact alongside x86_64.
 
@@ -85,13 +92,13 @@ versions follow [SemVer](https://semver.org/) (0.x: minor bumps may change behav
   user namespaces or use the syscalls listed above. Pass `--no-seccomp` for
   the old behavior.
 
-[0.2.0]: https://github.com/abdogad/runbox/releases/tag/v0.2.0
+[0.2.0]: https://github.com/abdogad/tallyrun/releases/tag/v0.2.0
 
 ## [0.1.0] - 2026-07-02
 
 First release.
 
-- `runbox run` — one command in, one JSON line out
+- `tallyrun run` — one command in, one JSON line out
   ([contract](docs/CONTRACT.md)): exit code/signal, retired user-space
   instruction count, CPU/wall time, peak RSS, and how each was measured.
 - Load-invariant measurement via `perf_event_open` (retired user-space
@@ -112,6 +119,6 @@ First release.
 - Reference judge in [examples/minijudge](examples/minijudge); benchmark
   harness in `bench/`; static musl release binary.
 
-[Unreleased]: https://github.com/abdogad/runbox/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/abdogad/runbox/releases/tag/v0.3.0
-[0.1.0]: https://github.com/abdogad/runbox/releases/tag/v0.1.0
+[Unreleased]: https://github.com/abdogad/tallyrun/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/abdogad/tallyrun/releases/tag/v0.3.0
+[0.1.0]: https://github.com/abdogad/tallyrun/releases/tag/v0.1.0

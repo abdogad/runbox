@@ -4,7 +4,7 @@ own PID namespace, so host process IDs and command lines are not visible.
 in a masked-procfs container.
 
 Skips where a fresh procfs can't be mounted (the same hardened-container case
-runbox itself auto-detects and falls back on) — there is nothing to prove."""
+tallyrun itself auto-detects and falls back on) — there is nothing to prove."""
 
 import shutil
 
@@ -30,7 +30,7 @@ def test_default_proc_hides_host_pids(tmp_path):
     # and bwrap's namespace init — a handful, never the host's hundreds.
     n = _pid_count(tmp_path)
     if n > 20:
-        pytest.skip("fresh procfs unavailable here (runbox auto-fell-back to bind)")
+        pytest.skip("fresh procfs unavailable here (tallyrun auto-fell-back to bind)")
     assert n < 20
 
 

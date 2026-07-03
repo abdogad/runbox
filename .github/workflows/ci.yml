@@ -21,7 +21,7 @@ jobs:
       # and instruction-dependent asserts skip; isolation and rlimit tests
       # run for real.
       - name: Enable unprivileged user namespaces (bwrap needs them)
-        # The probe mirrors runbox's mount plan (/usr + lib/bin symlinks —
+        # The probe mirrors tallyrun's mount plan (/usr + lib/bin symlinks —
         # a bare bwrap root has no /bin, and no /lib64 means no ELF loader).
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true

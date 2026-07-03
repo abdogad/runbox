@@ -1,7 +1,7 @@
-# minijudge — a complete judge in ~100 lines on top of runbox
+# minijudge — a complete judge in ~100 lines on top of tallyrun
 
 Everything a judge needs from a sandbox — isolation, load-invariant
-measurement, limit enforcement, killing — lives in the `runbox` binary. What
+measurement, limit enforcement, killing — lives in the `tallyrun` binary. What
 remains, and what this example shows, is pure policy glue: build the CLI
 invocation, parse the one-line JSON result, compare outputs, name the verdict.
 
@@ -25,7 +25,7 @@ MLE  01      65/1000 ms    81920/65536 kB
 
 ## The pattern
 
-One `runbox run` per execution, verdict decided from the JSON:
+One `tallyrun run` per execution, verdict decided from the JSON:
 
 | JSON field | verdict use |
 |---|---|
@@ -42,7 +42,7 @@ ms limit into instructions. Calibrate it against reference solutions on your
 own problems and hardware; when in doubt, err generous — a loose budget only
 admits slightly slower solutions, a tight one rejects correct ones.
 
-Run it under a scope locally so runbox's self-service cgroup setup stays out
+Run it under a scope locally so tallyrun's self-service cgroup setup stays out
 of your desktop session and an OOM-killed `mle.py` can't stop the scope:
 
 ```console

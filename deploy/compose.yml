@@ -1,7 +1,7 @@
-# Grants cgroup-v2 delegation so runbox can create per-run cgroups and measure
+# Grants cgroup-v2 delegation so tallyrun can create per-run cgroups and measure
 # CPU time + peak RSS deterministically. No --privileged, no added capabilities.
 services:
-  runbox:
+  tallyrun:
     build:
       context: ..
       dockerfile: deploy/Dockerfile

@@ -8,13 +8,13 @@
   loaded. Wall time is worse still (+127% to +573%).
 - A submission at 90% of a CPU-time limit on an idle judge is at ~195% on a
   loaded one — verdict flipped. The same submission's instruction count moves
-  ≤0.25%. That is the entire case for runbox in two numbers.
+  ≤0.25%. That is the entire case for tallyrun in two numbers.
 - The often-cited fear that page faults and interrupts make instruction
   counts unreliable is real in theory and negligible at judging scale: the
   most page-fault-heavy workload measured 0.00003% RSD.
 - The dominant noise source is not the hardware counter — it's **runtime
   nondeterminism** (CPython hash randomization alone: ~1.5% RSD). The sandbox
-  must pin it, and runbox does (`PYTHONHASHSEED=0`, `--clearenv`).
+  must pin it, and tallyrun does (`PYTHONHASHSEED=0`, `--clearenv`).
 
 ## Setup
 
@@ -24,7 +24,7 @@
 | Kernel | 6.14.5 (Fedora 40), `perf_event_paranoid=2` |
 | Method | N=12 runs per workload per condition, min/max dropped, RSD of the remaining 10 — the [COFFE](https://arxiv.org/abs/2502.02827) methodology |
 | Conditions | "idle" = normal desktop (ambient loadavg ~2–3, deliberately not a lab machine); "loaded" = 32 shell busy-loops (2× nproc) |
-| Harness | [`bench/measure.py`](../bench/measure.py) shelling out to `runbox run --no-isolate` so `cpu_ms` comes from `wait4` on the payload itself |
+| Harness | [`bench/measure.py`](../bench/measure.py) shelling out to `tallyrun run --no-isolate` so `cpu_ms` comes from `wait4` on the payload itself |
 
 Workloads: C ALU loop, C 64 MiB random memory walk (page-fault heavy),
 CPython arithmetic, CPython string-dict churn (hash-seed sensitive, run
@@ -185,7 +185,7 @@ Ranked by measured RSD, idle:
    hash seed pinned, object-identity hashes still depend on ASLR addresses.
 3. **JIT runtimes: ~0.08% (V8), ~0.27–0.58% (JVM).** Tiering decisions vary.
 4. **CPython hash randomization: ~1.5%** (dict/str unpinned) — as noisy as
-   CPU time. **The sandbox must pin `PYTHONHASHSEED`**; runbox does, inside
+   CPU time. **The sandbox must pin `PYTHONHASHSEED`**; tallyrun does, inside
    `--clearenv`, since Phase 0.
 
 Practical guidance for limit headroom by runtime class: compiled ~1.001×
@@ -203,7 +203,7 @@ before exec so it can follow the whole process tree):
 
 The offset is constant to within ~0.002% of a typical run. It cancels
 completely if limits are calibrated by running reference solutions through
-runbox itself — which is how judges calibrate limits anyway.
+tallyrun itself — which is how judges calibrate limits anyway.
 
 ## Where instruction counting is unavailable (deployment matrix)
 
@@ -222,7 +222,7 @@ least some providers enable it. Whether *virtualized* counters keep their
 low variance under noisy-neighbor co-tenancy is an open question this study
 should answer next, by running the harness on such a VM.
 
-runbox degrades loudly (`"measurement":"degraded"` + stderr warning), and
+tallyrun degrades loudly (`"measurement":"degraded"` + stderr warning), and
 `--require-insn` turns degradation into a hard failure — judges should use
 it. Practical consequence: **host instruction-count judging on bare metal or
 PMU-enabled VMs**, not on default-configured containers or CI runners.

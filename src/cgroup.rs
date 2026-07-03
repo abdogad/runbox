@@ -4,13 +4,13 @@
 //! cgroup v2 forbids a cgroup from having both member processes and
 //! controllers enabled for its children ("no internal processes" rule), so
 //! `setup` vacates the current cgroup by moving every member into a
-//! `runbox-init` leaf, then enables controllers in `cgroup.subtree_control`.
+//! `tallyrun-init` leaf, then enables controllers in `cgroup.subtree_control`.
 //! Per-run cgroups are created as siblings of the leaf. Subsequent
 //! invocations are born inside the leaf (their parent was moved there) and
 //! skip straight to creating run cgroups.
 //!
 //! Deployments can instead prepare a delegated directory themselves and point
-//! `RUNBOX_CGROUP_DIR` (or `--cgroup-dir`) at it; runbox then only creates
+//! `TALLYRUN_CGROUP_DIR` (or `--cgroup-dir`) at it; tallyrun then only creates
 //! per-run children there and never migrates anything.
 
 use std::fs;
@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const CGROUP_ROOT: &str = "/sys/fs/cgroup";
-const INIT_LEAF: &str = "runbox-init";
+const INIT_LEAF: &str = "tallyrun-init";
 // Controller sets to try, richest first. cpu is deliberately not requested:
 // cgroup core maintains cpu.stat's usage_usec on every cgroup regardless, so
 // a bare child cgroup already gives subtree-accurate CPU; controllers are
@@ -53,7 +53,7 @@ fn subtree_has(base: &Path, controller: &str) -> bool {
 }
 
 /// Move every member of `base` (ourselves included) into the init leaf, then
-/// enable controllers for children. Retried because concurrent runbox
+/// enable controllers for children. Retried because concurrent tallyrun
 /// invocations may keep appearing in `base` between the move and the enable.
 fn vacate_and_enable(base: &Path) -> io::Result<()> {
     let leaf = base.join(INIT_LEAF);
@@ -86,7 +86,7 @@ fn vacate_and_enable(base: &Path) -> io::Result<()> {
 /// yields subtree CPU; memory metrics just degrade (visible via
 /// `RunCgroup::has_memory`).
 pub fn setup(explicit: Option<&Path>) -> io::Result<PathBuf> {
-    let env_dir = std::env::var_os("RUNBOX_CGROUP_DIR").map(PathBuf::from);
+    let env_dir = std::env::var_os("TALLYRUN_CGROUP_DIR").map(PathBuf::from);
     if let Some(dir) = explicit.map(Path::to_path_buf).or(env_dir) {
         // A prepared dir has no member processes, so no vacating: just make
         // sure child accounting is on (best effort — must be inside the
