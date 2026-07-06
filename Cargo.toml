@@ -2,7 +2,7 @@
 name = "tallyrun"
 version = "0.5.0"
 edition = "2021"
-description = "Judge untrusted competitive-programming code on low-variance, load-invariant virtual time (hardware instruction counting) instead of wall/CPU seconds."
+description = "Rootless sandbox that judges untrusted code by counting CPU instructions instead of seconds — same verdict on a busy machine as on an idle one."
 license = "MIT"
 repository = "https://github.com/abdogad/tallyrun"
 keywords = ["sandbox", "judge", "competitive-programming", "perf", "isolation"]

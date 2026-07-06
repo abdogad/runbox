@@ -4,21 +4,20 @@
 [![Release](https://img.shields.io/github/v/release/abdogad/tallyrun)](https://github.com/abdogad/tallyrun/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Rootless Linux sandbox that runs untrusted code and reports low-variance,
-load-invariant cost measurements — no `--privileged`, no setuid.**
+**A rootless Linux sandbox that runs untrusted code and measures the work it
+did by counting CPU instructions — a number that stays the same whether the
+machine is idle or busy. No `--privileged`, no setuid.**
 
-Time-based judging flips verdicts: the same solution that passes on an idle
-judge can TLE on a busy one. [Measured](docs/BENCHMARK.md), both ways: on a
-stock desktop governor the CPU time of an identical program varies **up to
-48% run-to-run**; on a tuned, dedicated judge box (performance governor,
-boost off, idle) that noise collapses to 0.14–1.6% — but the mean still
-shifts **+35–72% the moment the box is loaded**, and one plain C loop kept
-an **8× CPU-time spread even tuned and idle**. tallyrun instead measures
-work in **retired user-space instructions** — a hardware counter
-(`perf_event_open`) attached across the whole sandboxed process tree — which
-held **~1e-7 RSD for compiled code and a ≤0.5% load shift for every runtime
-measured, tuned or not**, because a busy judge doesn't make your program
-execute more instructions.
+Judging code by how many seconds it takes is unreliable: CPU time for the
+very same program swings with machine load and CPU frequency scaling, so a
+solution that passes on an idle judge can be ruled "too slow" on a busy one.
+tallyrun counts **CPU instructions** instead — a hardware counter
+(`perf_event_open`) attached to the whole sandboxed process tree — and a
+busy machine doesn't make a program execute more instructions.
+[Measured](docs/BENCHMARK.md): on a stock desktop, CPU time for an identical
+compiled program varied up to **48% run-to-run**, while its instruction
+count varied by about **one part in ten million** — and under full machine
+load the count moved **≤0.5%** for every runtime tested.
 
 It's a **small binary you call as a subprocess**: one command in, one JSON
 line out. Isolation is bubblewrap (rootless user namespaces), so it runs as a
@@ -53,12 +52,12 @@ mkdir -p /tmp/box && echo 'print(sum(i*i for i in range(10**6)))' > /tmp/box/m.p
 {"exit_code":0,"signal":null,"timed_out":false,"killed":null,"instructions":1140561942,"measurement":"full","accounting":"cgroup","cpu_ms":116,"wall_ms":117,"peak_kb":5864}
 ```
 
-Exceed `--insn-limit` and the run is killed with `"killed":"instructions"` — a
-TLE verdict that doesn't depend on machine load. `--wall-ms` survives only as
+Exceed `--insn-limit` and the run is killed with `"killed":"instructions"` —
+a "too slow" verdict that doesn't depend on machine load. `--wall-ms` is just
 a safety net for genuine hangs (a blocked program burns no instructions).
-`cpu_ms` and `peak_kb` come from a per-run cgroup, so they cover the whole
-process tree across bwrap's PID namespace; `"accounting"` tells you whether
-you got that (`cgroup`) or the per-process fallback (`rusage`), and
+`cpu_ms` and `peak_kb` are measured with a per-run cgroup, so they cover
+every process the submission spawns; `"accounting"` tells you whether you
+got that (`cgroup`) or the weaker per-process fallback (`rusage`), and
 `--require-cgroup` turns the fallback into a hard error.
 
 The full field-by-field contract — every JSON field, every exit code, and
@@ -67,33 +66,36 @@ Building a judge on top of it takes ~100 lines of glue:
 [`examples/minijudge`](examples/minijudge) is a complete AC/WA/CE/RE/TLE/MLE
 judge you can run right now.
 
-## Low-variance measurement (the point) — and its honest limits
+## What instruction counting promises — and what it doesn't
 
-The claim is **low variance and load invariance**, not determinism. Precisely:
+The claim is a **stable, load-independent count**, not a perfect one. The
+honest limits:
 
-- **Not bit-exact.** Page faults and interrupts perturb the raw count slightly
-  (this is why [rr](https://rr-project.org/) uses retired conditional branches
-  for its replay clock). For judging, verdict stability with normal limit
-  headroom is what matters, and ~1e-7 relative noise delivers it.
-- **Not portable across CPU microarchitectures.** Absolute counts differ
-  between CPU families. Calibrate instruction limits on the judging hardware
-  class — the same way every judge already calibrates time limits per machine.
-- **Interpreted runtimes add their own nondeterminism.** CPython's hash
-  randomization alone is ~1.5% RSD — as noisy as CPU time. tallyrun pins
-  `PYTHONHASHSEED=0` inside the sandbox, which brings Python to 0.0002–0.17%
-  depending on workload. JIT runtimes (V8, JVM) land at 0.05–0.6%. Full
-  per-runtime numbers: [docs/BENCHMARK.md](docs/BENCHMARK.md).
-- **Kernel time is invisible.** The counter excludes kernel mode, so
-  syscall-heavy code is undercounted — and two correct solutions that split
-  their work differently between user and kernel mode are scored on
-  different scales. The CPU budget (`--cpu-s`) is therefore part of the
-  verdict contract, not optional hardening: with a cgroup it is enforced on
-  the **whole subtree** (`killed:"cpu"`, from `cpu.stat`), bounding the
-  kernel-mode and fork-spread work instructions can't see without falling
-  back to load-dependent wall time.
-- **A constant bwrap-setup offset** (sandbox startup instructions) is included
-  in the count. It is stable run-to-run and cancels when limits are calibrated
-  through tallyrun itself.
+- **Not bit-exact.** Page faults and interrupts perturb the raw count
+  slightly (this is why [rr](https://rr-project.org/) uses retired
+  conditional branches for its replay clock). What matters for judging is
+  that verdicts stay stable with normal limit headroom — and ~1e-7 relative
+  noise delivers that.
+- **Not portable across CPU models.** Absolute counts differ between CPU
+  families, so calibrate instruction limits on the hardware that will run
+  the judge — the same way every judge already calibrates time limits per
+  machine.
+- **Interpreted runtimes add their own noise.** CPython's hash randomization
+  alone adds ~1.5% run-to-run variance — as noisy as CPU time. tallyrun pins
+  `PYTHONHASHSEED=0` inside the sandbox, which brings Python down to
+  0.0002–0.17% depending on workload. JIT runtimes (V8, JVM) land at
+  0.05–0.6%. Full per-runtime numbers: [docs/BENCHMARK.md](docs/BENCHMARK.md).
+- **Kernel time is invisible.** The counter only sees user-mode
+  instructions, so work done inside syscalls isn't counted — syscall-heavy
+  code is scored cheaper than compute-heavy code doing the same total work.
+  That's why the CPU budget (`--cpu-s`) is part of the verdict contract, not
+  optional hardening: enforced from the per-run cgroup's `cpu.stat`, it
+  bounds the whole process tree (`killed:"cpu"`), covering the kernel-mode
+  and fork-spread work instructions can't see — without falling back to
+  load-dependent wall time.
+- **A constant sandbox-startup offset** (bwrap's own setup instructions) is
+  included in the count. It's the same every run, so it cancels out when
+  limits are calibrated through tallyrun itself.
 
 ## Host requirements (read this before deploying)
 
@@ -161,15 +163,13 @@ gives tallyrun its subtree.
 
 ## Status
 
-- **Engine:** Rust (`src/lib.rs`, `src/cgroup.rs`, `src/main.rs`) — perf
-  instruction counting, bwrap isolation, per-run cgroup v2 accounting and
-  caps, rlimit backstops, one-line JSON contract
-  ([docs/CONTRACT.md](docs/CONTRACT.md)).
-- **Done:** [variance benchmark](docs/BENCHMARK.md), cgroup v2 port,
-  reference mini-judge, static release binaries (x86-64 + aarch64),
-  seccomp-bpf denylist, fresh-procfs isolation with auto-fallback.
-- **Used by:** [CodeClash](https://github.com/abdogad/code-clash), where
-  instruction budgets replaced CPU-time verdicts in production judging.
+Working end-to-end and used in production judging by
+[CodeClash](https://github.com/abdogad/code-clash), where instruction
+budgets replaced CPU-time verdicts. Ships with a
+[variance benchmark](docs/BENCHMARK.md), a reference
+[mini-judge](examples/minijudge), static release binaries
+(x86-64 + aarch64), and a stable one-line JSON contract
+([docs/CONTRACT.md](docs/CONTRACT.md)).
 
 ## How it compares
 
