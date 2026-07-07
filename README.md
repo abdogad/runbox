@@ -36,7 +36,8 @@ curl -fL -o tallyrun https://github.com/abdogad/tallyrun/releases/latest/downloa
 chmod +x tallyrun && sudo mv tallyrun /usr/local/bin/
 ```
 
-Or build from source: `cargo build --release`.
+Or install from crates.io with `cargo install tallyrun`, or build from
+source: `cargo build --release`.
 
 ## Quickstart
 
@@ -161,9 +162,10 @@ gives tallyrun its subtree.
 
 ## Status
 
-Working end-to-end and used in production judging by
-[CodeClash](https://github.com/abdogad/code-clash), where instruction
-budgets replaced CPU-time verdicts. Ships with a
+Working end-to-end. Extracted from
+[CodeClash](https://github.com/abdogad/code-clash), the contest platform it
+was originally built for, where instruction budgets replaced CPU-time
+verdicts. Ships with a
 [variance benchmark](docs/BENCHMARK.md), a reference
 [mini-judge](examples/minijudge), static release binaries
 (x86-64 + aarch64), and a stable one-line JSON contract
